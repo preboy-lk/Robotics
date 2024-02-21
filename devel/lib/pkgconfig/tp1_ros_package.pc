@@ -1,0 +1,8 @@
+prefix=/home/user/student-catkin-ws/devel
+
+Name: tp1_ros_package
+Description: Description of tp1_ros_package
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

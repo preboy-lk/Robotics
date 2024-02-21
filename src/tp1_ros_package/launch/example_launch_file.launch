@@ -1,0 +1,4 @@
+<launch>
+	<node pkg="tp1_ros_package" type="my_first_ros_node.py" name="my_publisher_node" output="screen" />
+	<node pkg="tp1_ros_package" type="my_listener_ros_node.py" name="my_listener_node" output="screen" />
+</launch>
