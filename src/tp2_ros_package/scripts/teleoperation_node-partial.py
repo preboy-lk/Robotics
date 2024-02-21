@@ -35,8 +35,8 @@ class Teleoperation_Node:
         # Get paramaters from the .launch file
         self.Forward = rospy.get_param('Forward', 'u')              # Default to 'u' if not set
         self.Backward = rospy.get_param('Backward', 'j')            # Default to 'j' if not set
-        self.RotateRight = rospy.get_param('RotateRight', 'k')      # Default to 'j' if not set
-        self.RotateLeft = rospy.get_param('RotateLeft', 'h')        # Default to 'j' if not set
+        self.RotateRight = rospy.get_param('RotateRight', 'k')      # Default to 'k' if not set
+        self.RotateLeft = rospy.get_param('RotateLeft', 'h')        # Default to 'h' if not set
         self.IncreaseSpeed = rospy.get_param('IncreaseSpeed', 'f')  # Default to 'f' if not set
         self.DecreaseSpeed = rospy.get_param('DecreaseSpeed', 's')  # Default to 's' if not set
 
