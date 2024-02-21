@@ -18,6 +18,6 @@
 	<!-- Mapping the input key 'f' to "IncreaseSpeed" to use in python script -->
 
 	<param name="DecreaseSpeed" type="str" value = "g"/>
-	<!-- Mapping the input key 's' to "DecreaseSpeed" to use in python script -->
+	<!-- Mapping the input key 'g' to "DecreaseSpeed" to use in python script -->
 
 </launch>
