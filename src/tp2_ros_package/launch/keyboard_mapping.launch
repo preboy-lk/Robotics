@@ -2,7 +2,7 @@
 	<node pkg = "tp2_ros_package" type="teleoperation_node-partial.py" name="my_teleoperation_node" output="screen" /> 
 	<!-- This line to run the python script teleoperation_node-partial.py in node tp2_ros_package -->
 
-	<param name="Forward" type="str" value = "u"/>
+	<param name="Forward" type="str" value = "l"/>
 	<!-- Mapping the input key 'u' to "Forward" to use in python script -->
 
 	<param name="Backward" type="str" value = "j"/>

@@ -11,57 +11,96 @@ from geometry_msgs.msg import Twist
 class Teleoperation_Node:
 
     def __init__(self, node_name):
-	#############
-	# YOUR CODE #
-	#############
-	pub = rospy.Publisher('/cmd_vel_mux/input/navi', Twist, queue_size=10)
-    	rospy.init_node(node_name, anonymous=True)
-    	rate = rospy.Rate(2) # 2hz
-	step_linear = 100
-	step_angular = 30
-	coeff_step = 1
-	msg = Twist()
-	key = self.getKey()
-	Forward = rospy.get_param('Forward', 'default_value')
-	Backward = rospy.get_param('Backward', 'default_value')
-	RotateRight = rospy.get_param('RotateRight', 'default_value')
-	RotateLeft = rospy.get_param('RotateLeft', 'default_value')
-	IncreaseSpeed = rospy.get_param('IncreaseSpeed', 'default_value')
-	DecreaseSpeed = rospy.get_param('decreaseSpeed', 'default_value')
+
+        # Giving a name for the ROS node
+        self.nname = node_name
+
+        # ROS node initialization
+        rospy.init_node(self.nname, anonymous=True)
+        print 'Starting node ' + rospy.get_name()
+        
+        # Setting the rate/frequency by which the ROS loop will iterate
+        self.rate = rospy.Rate(10) # 10hz
+	
+        # Declaring a publication to a ROS topic
+        self.pub = rospy.Publisher('/cmd_vel_mux/input/navi', Twist, queue_size=10)
+        
+
+        
+        # Parameters
+        self.msg = Twist() # the message is send to the topic '/cmd_vel_mux/input/navi'
+        self.key = None    # key is get from the keyboard
+        self.coeff = 1     # Coefficient to modify the speed
+        
+        # Get paramaters from the .launch file
+        self.Forward = rospy.get_param('Forward', 'u')              # Default to 'u' if not set
+        self.Backward = rospy.get_param('Backward', 'j')            # Default to 'j' if not set
+        self.RotateRight = rospy.get_param('RotateRight', 'k')      # Default to 'j' if not set
+        self.RotateLeft = rospy.get_param('RotateLeft', 'h')        # Default to 'j' if not set
+        self.IncreaseSpeed = rospy.get_param('IncreaseSpeed', 'f')  # Default to 'f' if not set
+        self.DecreaseSpeed = rospy.get_param('DecreaseSpeed', 's')  # Default to 's' if not set
+
+        # Run the program
+        self.run()        
+        
+        print 'Exiting node ' + rospy.get_name()
+
+
+    # This function get a pressed key on the keyboard to move the the TurtleBot2 inside Gazebo       
+    def run(self):
 
 	while not rospy.is_shutdown():
-	    msg.linear.x = 0
-	    msg.angular.z = 0
-	    if (self.getKey() == 'f'):
-		coeff_step *= 1.1
+	
+	    # Reset msg
+	    self.msg.linear.x = 0
+	    self.msg.angular.z = 0
+	    
+	    # get a pressed key on the keyboard
+	    self.key = self.getKey()
+	    
+	    # Move forward when the 'u' button is pressed	    	
+	    if (self.key == self.Forward):
+	        print 'Key ' + self.Forward + ' is pressed.'
+		self.msg.linear.x = 20*self.coeff # 20 [length unit]/[time unit]
+		self.pub.publish(self.msg)             # publish to '/cmd_vel_mux/input/navi'
+		
+	    # Move backward when the 'j' button is pressed
+	    elif (self.key == self.Backward):
+	        print 'Key ' + self.Backward + ' is pressed.'
+		self.msg.linear.x = -20*self.coeff # -20 [length unit]/[time unit]
+		self.pub.publish(self.msg)              # publish to '/cmd_vel_mux/input/navi'
+	    
+	    # Move clockwise when the 'k' button is pressed
+	    elif (self.key == self.RotateRight):
+	        print 'Key ' + self.RotateRight + ' is pressed.'
+		self.msg.angular.z = -30*self.coeff # -0.5236 rad/[time unit]
+		self.pub.publish(self.msg)          # publish to '/cmd_vel_mux/input/navi'
+	    
+	    # Move counter-clockwise when the 'h' button is pressed
+	    elif (self.key == self.RotateLeft):
+	        print 'Key ' + self.RotateLeft + ' is pressed.' 
+		self.msg.angular.z = 30*self.coeff # 0.5236  rad/[time unit]
+		self.pub.publish(self.msg)         # publish to '/cmd_vel_mux/input/navi'
 
-	    elif (self.getKey() == 's'):
-		coeff_step *= 0.9
-   	
-	    elif (self.getKey() == 'u'):
-		msg.linear.x = coeff_step*step_linear
-	        pub.publish(msg)
-		
-	    elif (self.getKey() == 'j'):
-		msg.linear.x = -coeff_step*step_linear
-	        pub.publish(msg)
-		
-	    elif (self.getKey() == 'k'):
-		msg.angular.z = -coeff_step*step_angular #-0.5236
-	        pub.publish(msg)
-		
-	    elif (self.getKey() == 'h'):
-		msg.angular.z = coeff_step*step_angular #0.5236
-	        pub.publish(msg)
+	    # Increase the linear and angular speed of the robot by 10% when the 'f' button is pressed
+	    elif (self.key == self.IncreaseSpeed):
+	    	print 'Key ' + self.IncreaseSpeed +' is pressed.'
+		self.coeff = self.coeff*1.1
 
-	    elif (self.getKey() == 'e'):
+	    # Decrease the linear and angular speed of the robot by 10% when the 's' button is pressed
+	    elif (self.key == self.DecreaseSpeed):
+	    	print 'Key ', self.DecreaseSpeed + ' is pressed.'
+		self.coeff = self.coeff*0.9
+	    
+	    # Exit loop when the 'e' button is pressed
+	    elif (self.key == 'e'):
+	    	print('Key e is pressed.')
 		break
 
 	    else:
-		print('Invalid key.')	
-	rate.sleep()
-	print 'Exiting node ' + rospy.get_name()
-
+		print('Invalid key.')
+		
+			
     # This function reads a single keyboard character from the terminal and returns this character
     def getKey(self):
 	# Back-up default terminal settings
@@ -73,7 +112,6 @@ class Teleoperation_Node:
 	# Restore default terminal settings
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
         return key
-
 
 
 if __name__ == '__main__':
