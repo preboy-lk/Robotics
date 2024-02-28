@@ -2,4 +2,4 @@
 source_root_dir = '/home/user/student-catkin-ws/src'
 whitelisted_packages = ''.split(';') if '' != '' else []
 blacklisted_packages = ''.split(';') if '' != '' else []
-underlay_workspaces = '/home/user/catkin_ws/devel;/opt/ros/melodic'.split(';') if '/home/user/catkin_ws/devel;/opt/ros/melodic' != '' else []
+underlay_workspaces = '/home/user/student-catkin-ws/devel;/home/user/catkin_ws/devel;/opt/ros/melodic'.split(';') if '/home/user/student-catkin-ws/devel;/home/user/catkin_ws/devel;/opt/ros/melodic' != '' else []

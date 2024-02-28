@@ -133,6 +133,7 @@ if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   include("/home/user/student-catkin-ws/build/gtest/cmake_install.cmake")
   include("/home/user/student-catkin-ws/build/tp1_ros_package/cmake_install.cmake")
   include("/home/user/student-catkin-ws/build/tp2_ros_package/cmake_install.cmake")
+  include("/home/user/student-catkin-ws/build/tp3_ros_package/cmake_install.cmake")
 
 endif()
 
