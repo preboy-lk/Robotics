@@ -87,7 +87,7 @@ class Estimation_Node:
 	    else:
 	        A = np.array([self.plane_params[color][0:3] for color in ["red", "green", "blue"]])
 		b = np.array([-1,-1,-1]).T
-		crossing_point = np.linalg.inv(A).dot(b)
+		self.linear_solution = np.linalg.inv(A).dot(b)
 	
 	# Obtain z-axis (blue) vector as the vector orthogonal to the 3D plane defined by the red (x-axis) and the green (y-axis)
 	### Enter your code ###
@@ -96,11 +96,11 @@ class Estimation_Node:
 
 	# Obtain y-axis (green) vector as the vector orthogonal to the 3D plane defined by the blue (z-axis) and the red (x-axis)
 	### Enter your code ###
-		y_axis = np.cross(z_axis, self.plane_params["red"][0:3])
+		y_axis = np.cross(self.plane_params["blue"][0:3], self.plane_params["red"][0:3])
 		y_axis /= np.linalg.norm(y_axis)
 	# Construct the 3x3 rotation matrix whose columns correspond to the x, y and z axis respectively
 	### Enter your code ###
-		x_axis = self.plane_params["red"][0:3]
+		x_axis = np.cross(self.plane_params["green"][0:3], self.plane_params["blue"][0:3])#self.plane_params["red"][0:3]
 		x_axis /= np.linalg.norm(x_axis)
 		R = np.array([x_axis, y_axis, z_axis]).T
 		
@@ -118,17 +118,16 @@ class Estimation_Node:
 		    psi = np.arctan2(-R[1,2], R[1,1])
 		    theta = np.arctan2(-R[2,0], sy)
 		    phi = 0
-		
-		print psi
-		print theta
-		print phi
 
 	# Set the translation part of the 6DOF pose 'self.feature_pose'
 	### Enter your code ###
-
+		self.feature_pose.translation.x = self.linear_solution[0]
+		self.feature_pose.translation.y = self.linear_solution[1]
+		self.feature_pose.translation.z = self.linear_solution[2]
 	# Set the rotation part of the 6DOF pose 'self.feature_pose'
 	### Enter your code ###
-
+		rotation_quaternion = tf.transformations.quaternion_from_euler(psi, theta, phi)
+		self.feature_pose.rotation = rotation_quaternion
     	# Publish the transform using the data stored in the 'self.feature_pose'
     	self.br.sendTransform((self.feature_pose.translation.x, self.feature_pose.translation.y, self.feature_pose.translation.z), 					self.feature_pose.rotation, rospy.Time.now(), "corner_6dof_pose", "camera_depth_optical_frame")
 
