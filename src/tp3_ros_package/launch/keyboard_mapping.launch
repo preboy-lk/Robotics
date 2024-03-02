@@ -1,0 +1,23 @@
+<launch>
+	<node pkg = "tp2_ros_package" type="teleoperation_node-partial.py" name="my_teleoperation_node" output="screen" /> 
+	<!-- This line to run the python script teleoperation_node-partial.py in node tp2_ros_package -->
+
+	<param name="Forward" type="str" value = "z"/>
+	<!-- Mapping the input key 'z' to "Forward" to use in python script -->
+
+	<param name="Backward" type="str" value = "s"/>
+	<!-- Mapping the input key 's' to "Backward" to use in python script -->
+
+	<param name="RotateRight" type="str" value = "d"/>
+	<!-- Mapping the input key 'd' to "RotateRight" to use in python script -->
+
+	<param name="RotateLeft" type="str" value = "q"/>
+	<!-- Mapping the input key 'q' to "RotateLeft" to use in python script -->
+
+	<param name="IncreaseSpeed" type="str" value = "f"/>
+	<!-- Mapping the input key 'f' to "IncreaseSpeed" to use in python script -->
+
+	<param name="DecreaseSpeed" type="str" value = "g"/>
+	<!-- Mapping the input key 'g' to "DecreaseSpeed" to use in python script -->
+
+</launch>
