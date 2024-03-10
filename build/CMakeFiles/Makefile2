@@ -623,6 +623,24 @@ tp3_ros_package/preinstall:
 .PHONY : tp3_ros_package/preinstall
 
 #=============================================================================
+# Directory level rules for directory tp4_ros_package
+
+# Convenience name for "all" pass in the directory.
+tp4_ros_package/all:
+
+.PHONY : tp4_ros_package/all
+
+# Convenience name for "clean" pass in the directory.
+tp4_ros_package/clean:
+
+.PHONY : tp4_ros_package/clean
+
+# Convenience name for "preinstall" pass in the directory.
+tp4_ros_package/preinstall:
+
+.PHONY : tp4_ros_package/preinstall
+
+#=============================================================================
 # Special targets to cleanup operation of make.
 
 # Special rule to run CMake to check the build system integrity.

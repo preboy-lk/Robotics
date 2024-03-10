@@ -19,6 +19,8 @@ set(CMAKE_MAKEFILE_DEPENDS
   "tp2_ros_package/catkin_generated/package.cmake"
   "tp3_ros_package/catkin_generated/ordered_paths.cmake"
   "tp3_ros_package/catkin_generated/package.cmake"
+  "tp4_ros_package/catkin_generated/ordered_paths.cmake"
+  "tp4_ros_package/catkin_generated/package.cmake"
   "/home/user/student-catkin-ws/src/CMakeLists.txt"
   "/home/user/student-catkin-ws/src/tp1_ros_package/CMakeLists.txt"
   "/home/user/student-catkin-ws/src/tp1_ros_package/package.xml"
@@ -26,6 +28,8 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/home/user/student-catkin-ws/src/tp2_ros_package/package.xml"
   "/home/user/student-catkin-ws/src/tp3_ros_package/CMakeLists.txt"
   "/home/user/student-catkin-ws/src/tp3_ros_package/package.xml"
+  "/home/user/student-catkin-ws/src/tp4_ros_package/CMakeLists.txt"
+  "/home/user/student-catkin-ws/src/tp4_ros_package/package.xml"
   "/opt/ros/melodic/share/catkin/cmake/../package.xml"
   "/opt/ros/melodic/share/catkin/cmake/all.cmake"
   "/opt/ros/melodic/share/catkin/cmake/assert.cmake"
@@ -173,6 +177,7 @@ set(CMAKE_MAKEFILE_PRODUCTS
   "tp1_ros_package/CMakeFiles/CMakeDirectoryInformation.cmake"
   "tp2_ros_package/CMakeFiles/CMakeDirectoryInformation.cmake"
   "tp3_ros_package/CMakeFiles/CMakeDirectoryInformation.cmake"
+  "tp4_ros_package/CMakeFiles/CMakeDirectoryInformation.cmake"
   )
 
 # Dependency information for all targets:

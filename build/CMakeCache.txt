@@ -378,6 +378,12 @@ tp3_ros_package_BINARY_DIR:STATIC=/home/user/student-catkin-ws/build/tp3_ros_pac
 //Value Computed by CMake
 tp3_ros_package_SOURCE_DIR:STATIC=/home/user/student-catkin-ws/src/tp3_ros_package
 
+//Value Computed by CMake
+tp4_ros_package_BINARY_DIR:STATIC=/home/user/student-catkin-ws/build/tp4_ros_package
+
+//Value Computed by CMake
+tp4_ros_package_SOURCE_DIR:STATIC=/home/user/student-catkin-ws/src/tp4_ros_package
+
 
 ########################
 # INTERNAL cache entries
@@ -490,7 +496,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=7
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=8
 //ADVANCED property for variable: CMAKE_OBJCOPY
 CMAKE_OBJCOPY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_OBJDUMP
