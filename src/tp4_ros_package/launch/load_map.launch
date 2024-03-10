@@ -1,0 +1,10 @@
+<launch>
+    <!-- Load the map -->
+    <arg name="map_file" default="$(find tp4_ros_package)/maps/map2.yaml"/>
+    
+    <!-- Start the map_server -->
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output="screen">
+        <param name="frame_id" value="map" />
+    </node>
+</launch>
+
