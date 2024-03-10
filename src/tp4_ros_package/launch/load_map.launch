@@ -1,10 +1,8 @@
 <launch>
-    <!-- Load the map -->
+    <!-- Include the map server -->
     <arg name="map_file" default="$(find tp4_ros_package)/maps/map2.yaml"/>
-    
-    <!-- Start the map_server -->
-    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" output="screen">
-        <param name="frame_id" value="map" />
-    </node>
-</launch>
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" respawn="false" output="screen" />
 
+    <!-- RViz for visualization -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find tp4_ros_package)/cfg/tp4.rviz" required="true"/>
+</launch>
