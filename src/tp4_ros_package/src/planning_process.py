@@ -2,150 +2,167 @@
 import rospy
 import numpy as np
 import sys
-import sensor_msgs
-import struct
 import random
-from sensor_msgs import point_cloud2
-from geometry_msgs.msg import Transform
-from geometry_msgs.msg import Vector3
-from geometry_msgs.msg import Quaternion
-from sensor_msgs.msg import PointCloud2
+import heapq
+from geometry_msgs.msg import PointStamped, PoseStamped
+from visualization_msgs.msg import Marker, MarkerArray
+from nav_msgs.msg import OccupancyGrid, Path
+
+from std_msgs.msg import Header
 import tf
 
 # Definition of class
-class Estimation_Node:
+class Planning_Node:
     def __init__(self, node_name):
     	self.nname = node_name     #Giving a name for the ROS node
 
     	rospy.init_node(self.nname, anonymous=True) #ROS node initialization
+	print 'Start ...'
+	self.marker_pub = rospy.Publisher('/visualization_marker_array', MarkerArray, queue_size = 10)
+	self.shortest_path = rospy.Publisher('/path', Path, queue_size = 10)
 
-        self.num_of_plane_points = 100 # This sets a minimum number of points used to estimate a 3D plane
-
-	# A dictionnary holding the plane parameters, 4 per plane equation ax+by+cz+d = 0
-        self.plane_params = {"red":[-1]*4, "green":[-1]*4, "blue":[-1]*4} 
-
-        self.plane_points = {"red":[], "green":[], "blue":[]}
-
-	self.colors = list(self.plane_points.keys()) # Names of planes
-
-	# This will hold the 6DOF pose of the feature, by a 3D vector for the translation and a quaternion for the rotation
-	self.feature_pose = Transform(Vector3(0, 0, 0.5), tf.transformations.quaternion_from_euler(0, 0, 0)) 
-
-	# This will hold the point of planes intersection obtained by solving a 3x3 linear system of equations
-	self.linear_solution = [] 
-
-	point_cloud_sub = rospy.Subscriber("/camera/depth/points", PointCloud2, self.estimate_pose_callback) # ROS topic subscription
-
-	self.br = tf.TransformBroadcaster()
-
+	point_sub = rospy.Subscriber("/clicked_point", PointStamped, self.get_point_callback) # ROS topic subscription
+	map_sub = rospy.Subscriber("/map", OccupancyGrid, self.get_map_callback)
+	self.point1 = None
+	self.point2 = None
+	self.grid_map = None
+	self.map_info = None
 	rospy.spin() # Initiate the ROS loop
 
-    def empty_points(self):
-	self.plane_points["red"] = []
-	self.plane_points["green"] = []
-	self.plane_points["blue"] = []
+    def get_map_callback(self, map_info):
+	map = np.array(map_info.data).reshape((map_info.info.height,map_info.info.width))
+	self.map_info = map_info
+	self.grid_map = map.T
 
-    def estimate_pose_callback(self, pointcloud_msg):
-	print 'Received PointCloud2 message. Reading data...'
-	point_list = sensor_msgs.point_cloud2.read_points(pointcloud_msg, skip_nans=True, field_names = ("x", "y", "z", "rgb"))
+    def coordinate_to_index(self, point):
+	index_x = int(np.round((point.x - self.map_info.info.origin.position.x)/self.map_info.info.resolution))
+	index_y = int(np.round((point.y - self.map_info.info.origin.position.y)/self.map_info.info.resolution))
+	return [index_x, index_y]
 
-	print 'Retrieving coordinates and colors...'
-	for point in point_list:
-	    rgb = struct.unpack('BBBB', struct.pack('f', point[3]))
+    def index_to_coordinate(self, point):
+	coordinate_x = point.x*self.map_info.info.resolution + self.map_info.info.origin.position.x
+	coordinate_y = point.y*self.map_info.info.resolution + self.map_info.info.origin.position.y
+	return [coordinate_x, coordinate_y]
 
-	    if rgb[2] > 100 and rgb[0] < 20 and rgb[1] < 20: # If dominant red point, concatenate it
-		self.plane_points["red"] += [[point[0], point[1], point[2]]]
-	    elif rgb[1] > 100 and rgb[0] < 20 and rgb[2] < 20: # If dominant green point, concatenate it
-		self.plane_points["green"] += [[point[0], point[1], point[2]]]
-	    elif rgb[0] > 100 and rgb[2] < 20 and rgb[1] < 20: # If dominant blue point, concatenate it
-		self.plane_points["blue"] += [[point[0], point[1], point[2]]]
+    def publish_path(self, shortest_path):
+	path = Path()
+	for point in shortest_path:
+	    pose = PoseStamped()
+	    pose.header.frame_id = 'map'
+	    pose.pose.position.x = point[0]
+	    pose.pose.position.y = point[1]
+	    pose.pose.position.z = 0
 
-	# Test if there are sufficient points for each plane
-	# If the number of points belonging to any planes is inferior than minimum number of points (100 points),
-	# the notification will be shown in the terminal.		
-	if any(len(self.plane_points[color]) <= self.num_of_plane_points for color in ["red", "green", "blue"]):
-    	    if len(self.plane_points["red"]) <= self.num_of_plane_points:
-		print 'There is not enough points for the red plane.'
-    	    if len(self.plane_points["green"]) <= self.num_of_plane_points:
-		print 'There is not enough points for the green plane.'
-    	    if len(self.plane_points["blue"]) <= self.num_of_plane_points:
-		print 'There is not enough points for the blue plane.'
+	    pose.header.seq = path.header.seq +1
+	    path.header.frame_id = 'map'
+	    path.header.stamp = rospy.Time.now()
+	    pose.header.stamp = path.header.stamp
+	    path.poses.append(pose)
+	self.shortest_path.publish(path)
+
+    def publish_marker_array(self):
+	marker_array = MarkerArray()
+	for idx, point in enumerate([self.point1, self.point2]):
+    	    marker = Marker()
+    	    marker.header.frame_id = 'map'
+	    marker.id = idx
+    	    marker.type = Marker.POINTS
+            marker.action = Marker.ADD
+    	    marker.scale.x = 0.5
+    	    marker.scale.y = 0.5
+    	    marker.color.a = 1.0 
+    	    marker.color.r , marker.color.g, marker.color.b = (0.0, 0.0, 1.0) if idx == 0 else (1.0, 0.0, 0.0)
+    	    marker.points.append(point)
+	    marker_array.markers.append(marker)
+	self.marker_pub.publish(marker_array)
+
+    def cost_to_go(self, node, goal):
+        return (node.x - goal.x)**2 + abs(node.y - goal.y)**2
+
+    def get_point_callback(self, point_info):
+	if not self.point1:
+	    self.point1 = point_info.point
+	    rospy.loginfo('Coordinates 1: x = %f y = %f' %(self.point1.x,self.point1.y))
+
 	else:
-	    # Estimate the plane equation for each colored point set using Least Squares algorithm
-	    for color in self.colors:
+	    self.point2 = point_info.point
+	    rospy.loginfo('Coordinates 2: x = %f y = %f' %(self.point2.x,self.point2.y))
 
-		# H is matrix containing all points in the current color plane. H size is (number of points,3) 
-		H = np.array(self.plane_points[color])  
-
-		# Matrix 1 with size (number of points,1) due to set plane equation ax+by+cz = 1 with d = -1
-		y = np.array([1] * len(self.plane_points[color]))  
-
-		self.plane_params[color][0:3] = np.dot(np.dot(np.linalg.inv(H.T.dot(H)), H.T), y) # Solution of LS: (H'*H)^(-1)*H'*y
-
-		# Verify that each pair of 3D planes are approximately orthogonal to each other
-		# Two planes are orthogonal if dot product of their normal vector are 0. Set threshold is 0.1 due to the calculation error. 
-		is_Orthgonal_RG = abs(np.dot(self.plane_params["red"][0:3],self.plane_params["green"][0:3])) < 0.1
-		is_Orthgonal_GB = abs(np.dot(self.plane_params["green"][0:3],self.plane_params["blue"][0:3])) < 0.1
-		is_Orthgonal_BR = abs(np.dot(self.plane_params["blue"][0:3],self.plane_params["red"][0:3])) < 0.1
-		if not (is_Orthgonal_RG and is_Orthgonal_GB and is_Orthgonal_BR):
-		    print "Not all planes are orthogonal to each other. Will not estimate 6DOF pose." # Notification in the terminal if not orthogonal
-		else:
-		    # Feature detection
-		    # Solve 3x3 linear system of equations given by the three intersecting planes, in order to find their point of intersection
-
-		    # A is matrix containing planes parameter. A size is (number of planes,3)
-		    A = np.array([self.plane_params[color][0:3] for color in ["red", "green", "blue"]])
-		    
-		    # Matrix 1 with size (Dimension of points,1) due to set plane equation ax+by+cz = 1 with d = -1
-		    b = np.array([1,1,1]).T
-
-		    self.linear_solution = np.linalg.inv(A).dot(b) # Solution: A^(-1)*b
-
-		    # Obtain z-axis (blue) vector as the vector orthogonal to the 3D plane defined by the red (x-axis) and the green (y-axis)
-		    z_axis = np.cross(self.plane_params["red"][0:3], self.plane_params["green"][0:3])
-		    z_axis /= np.linalg.norm(z_axis) # Normalization
-
-		    # Obtain y-axis (green) vector as the vector orthogonal to the 3D plane defined by the blue (z-axis) and the red (x-axis)
-		    y_axis = np.cross(self.plane_params["blue"][0:3], self.plane_params["red"][0:3])
-		    y_axis /= np.linalg.norm(y_axis) # Normalization
-
-		    # Obtain x-axis (red) vector as the vector orthogonal to the 3D plane defined by the green (y-axis) and the blue (z-axis)
-		    x_axis = np.cross(self.plane_params["green"][0:3], self.plane_params["blue"][0:3])
-		    x_axis /= np.linalg.norm(x_axis) # Normalization
-
-		    # Construct the 3x3 rotation matrix whose columns correspond to the x, y and z axis respectively
-		    R = np.array([x_axis, y_axis, z_axis]).T
+	if self.point1 and self.point2:
+	    self.publish_marker_array()
+	    self.find_path()
 	
-		    # Obtain the corresponding euler angles from the previous 3x3 rotation matrix
-		    # (psi, theta, phi) represent rotations around the axes (Z, Y, X)
-		    if (R[2,0] != 1 and R[2,0] != -1):  # No Gimbal Lock
-			theta = -np.arcsin(R[2,0])
-			psi = np.arctan2(R[2,1]/np.cos(theta), R[2,2]/np.cos(theta))
-			phi = np.arctan2(R[1,0]/np.cos(theta), R[0,0]/np.cos(theta))
-		    else : # Gimbal Lock
-			phi = 0 # Can set to anything
-			if (R[2,0] == -1) :
-				theta = np.pi/2
-				psi = phi + np.arctan2(R[0,1], R[0,2])
-			else:
-				theta = -np.pi/2
-				psi = -phi + np.arctan2(-R[0,1], -R[0,2])
+	    self.point1 = None
+	    self.point2 = None
 
-		    # Set the translation part of the 6DOF pose 'self.feature_pose'
-		    self.feature_pose.translation.x = self.linear_solution[0] # x of the point of intersection
-		    self.feature_pose.translation.y = self.linear_solution[1] # y of the point of intersection
-		    self.feature_pose.translation.z = self.linear_solution[2] # z of the point of intersection
+    def find_path(self):
+	index_x, index_y = self.coordinate_to_index(self.point1)
+	start_point = Node(index_x, index_y)
+	
+	index_x, index_y = self.coordinate_to_index(self.point2)
+	goal_point = Node(index_x, index_y)
 
-		    # Set the rotation part of the 6DOF pose 'self.feature_pose'
-		    rotation_quaternion = tf.transformations.quaternion_from_euler(psi, theta, phi) # Convert Euler angles to a quaternion
-		    self.feature_pose.rotation = rotation_quaternion
+        open_list = []
+        closed_set = set() # Use set because it is the good way to check whether a specific element is contained in set
+	start_point.g = 0
+        heapq.heappush(open_list, start_point)
 
-		    # Publish the transform using the data stored in the 'self.feature_pose'
-		    self.br.sendTransform((self.feature_pose.translation.x, self.feature_pose.translation.y, self.feature_pose.translation.z),self.feature_pose.rotation, rospy.Time.now(), "corner_6dof_pose", "camera_depth_optical_frame")
+        while open_list:
+            current_point = heapq.heappop(open_list)
+	    closed_set.add((current_point.x, current_point.y))
 
-	# Empty points
-	self.empty_points()
+            if current_point.x == goal_point.x and current_point.y == goal_point.y:
+		print 'Finding Path Successfully !!!'
+		path = []
+                while current_point:
+                    path.append(self.index_to_coordinate(current_point))
+                    current_point = current_point.parent
+                self.publish_path(path[::-1])
+                return
+
+
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]:
+                next_x, next_y = current_point.x + dx, current_point.y + dy
+
+                if next_x < 0 or next_x >= self.map_info.info.height or next_y < 0 or next_y >= self.map_info.info.width or self.grid_map[next_x,next_y] != 0: # Check all the possible positions the robot can go. Xem lai cho nay neu bi loi; hinh ko vuong 
+		    continue
+                if (next_x, next_y) in closed_set:
+                    continue		
+
+                new_g = current_point.g + 1
+                new_h = self.cost_to_go(Node(next_x, next_y), goal_point)
+
+                next_point = Node(next_x, next_y, current_point)
+                next_point.g = new_g
+                next_point.h = new_h
+
+                heapq.heappush(open_list, next_point)
+
+		#next_point = Node(next_x,next_y,current_point)
+		#gnew = current_point.g + 1 # Because of L1 distance
+		#fnew = gnew + self.cost_to_go(next_point, goal_point)
+	        #next_point.f = fnew
+		#if not next_point in open_list:
+	        #    heapq.heappush(open_list, next_point)
+		#else:
+		#    print next_point.g
+		#    if (gnew < next_point.g):
+		#	heapq.heappop(open_list, next_point)
+		#	next_point.g = gnew
+		#	heapq.heappush(open_list, next_point)
+        rospy.loginfo("No path found")
+
+class Node:
+    def __init__(self, x, y, parent=None):
+        self.x = x
+        self.y = y
+        self.parent = parent
+        self.g = 0
+        self.h = 0
+    def __lt__(self, other):
+        return (self.g + self.h) < (other.g + other.h)
+
 
 if __name__ == '__main__':
-    my_estim_object = Estimation_Node('my_estimation_node')
+    planning_process_object = Planning_Node('planning_process')
 
