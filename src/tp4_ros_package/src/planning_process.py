@@ -7,18 +7,30 @@ import heapq
 from geometry_msgs.msg import PointStamped, PoseStamped
 from visualization_msgs.msg import Marker, MarkerArray
 from nav_msgs.msg import OccupancyGrid, Path
-
 from std_msgs.msg import Header
-import tf
+
 
 # Definition of class
+
+class Node:
+    def __init__(self, x, y, parent=None):
+        self.x = x
+        self.y = y
+	self.z = 0
+        self.parent = parent
+        self.g = 0.0
+        self.f = 0.0
+    def __lt__(self, other): # Useful for heapq to sort the list
+	return self.f < other.f 
+
 class Planning_Node:
     def __init__(self, node_name):
     	self.nname = node_name     #Giving a name for the ROS node
 
     	rospy.init_node(self.nname, anonymous=True) #ROS node initialization
 	print 'Start ...'
-	self.marker_pub = rospy.Publisher('/visualization_marker_array', MarkerArray, queue_size = 10)
+	self.marker_pub = rospy.Publisher('/visualization_marker_array1', MarkerArray, queue_size = 2)
+	self.visited_point_pub = rospy.Publisher('/visualization_marker_array2', MarkerArray, queue_size = 100)
 	self.shortest_path = rospy.Publisher('/path', Path, queue_size = 10)
 
 	point_sub = rospy.Subscriber("/clicked_point", PointStamped, self.get_point_callback) # ROS topic subscription
@@ -44,6 +56,53 @@ class Planning_Node:
 	coordinate_y = point.y*self.map_info.info.resolution + self.map_info.info.origin.position.y
 	return [coordinate_x, coordinate_y]
 
+    def publish_marker_array(self):
+	
+	marker_array = MarkerArray()
+	for idx, point in enumerate([self.point1, self.point2]):
+    	    marker = Marker()
+    	    marker.header.frame_id = 'map'
+	    marker.id = idx
+    	    marker.type = Marker.POINTS
+            marker.action = Marker.ADD
+    	    marker.scale.x = 0.5
+    	    marker.scale.y = 0.5
+    	    marker.color.a = 1.0 
+    	    marker.color.r , marker.color.g, marker.color.b = (0.0, 0.0, 1.0) if idx == 0 else (1.0, 0.0, 0.0)
+    	    marker.points.append(point)
+	    marker_array.markers.append(marker)
+	self.marker_pub.publish(marker_array)
+
+    def publish_closed_set(self, closed_set):
+	marker_array = MarkerArray()
+	for idx, point in enumerate(closed_set):
+	    (x1 , y1) = point
+	    node = Node(x1,y1)
+	    [x2, y2] = self.index_to_coordinate(node)
+	    node2 = Node(x2,y2)
+    	    marker = Marker()
+	    marker.id = idx
+    	    marker.header.frame_id = 'map'
+    	    marker.type = Marker.POINTS
+            marker.action = Marker.ADD
+    	    marker.scale.x = 0.25
+    	    marker.scale.y = 0.25
+    	    marker.color.a = 1.0 
+    	    marker.color.r , marker.color.g, marker.color.b = 1.0, 1.0, 1.0
+    	    marker.points.append(node2)
+	    marker_array.markers.append(marker)
+	self.visited_point_pub.publish(marker_array)	
+
+    def delete_closed_set(self):
+	marker_array = MarkerArray()
+    	marker = Marker()
+	marker.id = 0
+    	marker.header.frame_id = 'map'
+    	marker.type = Marker.POINTS
+        marker.action = Marker.DELETEALL
+	marker_array.markers.append(marker)
+	self.visited_point_pub.publish(marker_array)	
+
     def publish_path(self, shortest_path):
 	path = Path()
 	for point in shortest_path:
@@ -60,24 +119,20 @@ class Planning_Node:
 	    path.poses.append(pose)
 	self.shortest_path.publish(path)
 
-    def publish_marker_array(self):
-	marker_array = MarkerArray()
-	for idx, point in enumerate([self.point1, self.point2]):
-    	    marker = Marker()
-    	    marker.header.frame_id = 'map'
-	    marker.id = idx
-    	    marker.type = Marker.POINTS
-            marker.action = Marker.ADD
-    	    marker.scale.x = 0.5
-    	    marker.scale.y = 0.5
-    	    marker.color.a = 1.0 
-    	    marker.color.r , marker.color.g, marker.color.b = (0.0, 0.0, 1.0) if idx == 0 else (1.0, 0.0, 0.0)
-    	    marker.points.append(point)
-	    marker_array.markers.append(marker)
-	self.marker_pub.publish(marker_array)
-
     def cost_to_go(self, node, goal):
-        return (node.x - goal.x)**2 + abs(node.y - goal.y)**2
+        return ((node.x - goal.x)**2 + (node.y - goal.y)**2)**1/2
+
+    def is_valid(self, point):
+	return (point.x >= 0) and (point.x < self.map_info.info.height) and (point.y >= 0) and (point.y < self.map_info.info.width)
+
+    def is_unblocked(self, point):
+	return self.grid_map[point.x,point.y] == 0
+
+    def exist_in_list(self, lst, attribute1, attribute2):
+        for instance in lst:
+	    if instance.x == attribute1 and instance.y == attribute2:
+	        return instance
+        return None
 
     def get_point_callback(self, point_info):
 	if not self.point1:
@@ -89,9 +144,9 @@ class Planning_Node:
 	    rospy.loginfo('Coordinates 2: x = %f y = %f' %(self.point2.x,self.point2.y))
 
 	if self.point1 and self.point2:
+	    self.delete_closed_set()
 	    self.publish_marker_array()
 	    self.find_path()
-	
 	    self.point1 = None
 	    self.point2 = None
 
@@ -102,17 +157,28 @@ class Planning_Node:
 	index_x, index_y = self.coordinate_to_index(self.point2)
 	goal_point = Node(index_x, index_y)
 
+	if not self.is_valid(start_point) or not self.is_valid(goal_point):
+	    print 'Source or destination is invalid'
+	    return
+	if not self.is_unblocked(start_point) or not self.is_unblocked(goal_point):
+	    print 'Source or destination is blocked'
+	    return
+
         open_list = []
         closed_set = set() # Use set because it is the good way to check whether a specific element is contained in set
 	start_point.g = 0
+	start_point.f = 0
+
         heapq.heappush(open_list, start_point)
 
         while open_list:
             current_point = heapq.heappop(open_list)
 	    closed_set.add((current_point.x, current_point.y))
+            self.publish_closed_set(list(closed_set))  
 
             if current_point.x == goal_point.x and current_point.y == goal_point.y:
 		print 'Finding Path Successfully !!!'
+
 		path = []
                 while current_point:
                     path.append(self.index_to_coordinate(current_point))
@@ -123,45 +189,23 @@ class Planning_Node:
 
             for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]:
                 next_x, next_y = current_point.x + dx, current_point.y + dy
-
-                if next_x < 0 or next_x >= self.map_info.info.height or next_y < 0 or next_y >= self.map_info.info.width or self.grid_map[next_x,next_y] != 0: # Check all the possible positions the robot can go. Xem lai cho nay neu bi loi; hinh ko vuong 
+		next_point = Node(next_x,next_y,current_point)
+	        if (next_x, next_y) in closed_set:
 		    continue
-                if (next_x, next_y) in closed_set:
-                    continue		
-
-                new_g = current_point.g + 1
-                new_h = self.cost_to_go(Node(next_x, next_y), goal_point)
-
-                next_point = Node(next_x, next_y, current_point)
-                next_point.g = new_g
-                next_point.h = new_h
-
-                heapq.heappush(open_list, next_point)
-
-		#next_point = Node(next_x,next_y,current_point)
-		#gnew = current_point.g + 1 # Because of L1 distance
-		#fnew = gnew + self.cost_to_go(next_point, goal_point)
-	        #next_point.f = fnew
-		#if not next_point in open_list:
-	        #    heapq.heappush(open_list, next_point)
-		#else:
-		#    print next_point.g
-		#    if (gnew < next_point.g):
-		#	heapq.heappop(open_list, next_point)
-		#	next_point.g = gnew
-		#	heapq.heappush(open_list, next_point)
-        rospy.loginfo("No path found")
-
-class Node:
-    def __init__(self, x, y, parent=None):
-        self.x = x
-        self.y = y
-        self.parent = parent
-        self.g = 0
-        self.h = 0
-    def __lt__(self, other):
-        return (self.g + self.h) < (other.g + other.h)
-
+                if self.is_valid(next_point) and self.is_unblocked(next_point): # Check all the possible positions the robot can go
+		    gnew = current_point.g + self.cost_to_go(current_point, next_point) # Because of L2 distance
+		    fnew = gnew + self.cost_to_go(next_point, goal_point)
+		    next_point.f = fnew
+		    if self.exist_in_list(open_list, next_x, next_y) is None:
+			next_point.g = gnew
+			heapq.heappush(open_list, next_point)
+		    else:
+			found_point = self.exist_in_list(open_list, next_x, next_y)
+		        if gnew < found_point.g:
+			    open_list.remove(found_point)
+		            next_point.g = gnew
+	                    heapq.heappush(open_list, next_point)
+	rospy.loginfo("No path found")
 
 if __name__ == '__main__':
     planning_process_object = Planning_Node('planning_process')

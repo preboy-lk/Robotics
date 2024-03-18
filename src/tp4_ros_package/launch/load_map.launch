@@ -1,6 +1,6 @@
 <launch>
     <!-- Include the map server -->
-    <arg name="map_file" default="$(find tp4_ros_package)/maps/map2.yaml"/>
+    <arg name="map_file" default="$(find tp4_ros_package)/maps/map4.yaml"/>
     <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" respawn="false" output="screen" />
 
     <!-- RViz for visualization -->
