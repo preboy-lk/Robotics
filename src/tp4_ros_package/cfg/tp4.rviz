@@ -5,6 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Grid1/Offset1
+        - /MarkerArray2
+        - /Path1
       Splitter Ratio: 0.5
     Tree Height: 192
   - Class: rviz/Selection
@@ -153,7 +155,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 6.877187728881836
+      Scale: 7.7938456535339355
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
       X: -0.7895853519439697
@@ -176,4 +178,4 @@ Window Geometry:
     collapsed: true
   Width: 909
   X: 371
-  Y: 30
+  Y: 27
