@@ -1,7 +1,7 @@
 image: map2.png
 resolution: 0.5
-origin: [-64, -64, 0.0]
+origin: [-64.0, -64.0, 0.0]
 negate: 0
-occupied_thresh: 0.4
-free_thresh: 0.4
+occupied_thresh: 0.5
+free_thresh: 0.5
 

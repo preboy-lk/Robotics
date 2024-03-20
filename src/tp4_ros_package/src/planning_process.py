@@ -68,6 +68,32 @@ class Planning_Node:
 	self.grid_map = None
 	self.map_info = None
 	rospy.spin() # Initiate the ROS loop
+    def dilate_image(self, image, kernel):
+        # Get image dimensions
+        height, width = image.shape
+
+        # Get kernel dimensions
+        k_height, k_width = kernel.shape
+
+        # Pad the image to handle border pixels
+        padded_image = np.pad(image, ((k_height // 2, k_height // 2), (k_width // 2, k_width // 2)), mode='constant')
+
+        # Create an empty output image
+        dilated_image = np.zeros_like(image)
+
+        # Perform dilation
+        for i in range(height):
+            for j in range(width):
+            # Extract the neighborhood
+                neighborhood = padded_image[i:i + k_height, j:j + k_width]
+
+            # Perform element-wise multiplication with the kernel
+                dilation_result = neighborhood * kernel
+
+            # Assign the maximum value to the output image
+                dilated_image[i, j] = np.max(dilation_result)
+
+        return dilated_image
 
     def get_map_callback(self, map_info):
         """
@@ -77,7 +103,8 @@ class Planning_Node:
         """
 	map = np.array(map_info.data).reshape((map_info.info.height,map_info.info.width))
 	self.map_info = map_info
-	self.grid_map = map.T
+	dilated_map = self.dilate_image(map, np.ones((2, 2), dtype=np.uint8))
+	self.grid_map = dilated_map.T
 
     def coordinate_to_index(self, point):
         """
