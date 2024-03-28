@@ -1,0 +1,8 @@
+prefix=/home/user/student-catkin-ws/devel
+
+Name: TP5
+Description: Description of TP5
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

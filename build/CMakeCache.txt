@@ -266,6 +266,12 @@ SETUPTOOLS_DEB_LAYOUT:BOOL=ON
 //Name of the computer/site where compile is being run
 SITE:STRING=SYS-Ubuntu18
 
+//Value Computed by CMake
+TP5_BINARY_DIR:STATIC=/home/user/student-catkin-ws/build/TP5
+
+//Value Computed by CMake
+TP5_SOURCE_DIR:STATIC=/home/user/student-catkin-ws/src/TP5
+
 //LSB Distrib tag
 UBUNTU:BOOL=TRUE
 
@@ -384,6 +390,12 @@ tp4_ros_package_BINARY_DIR:STATIC=/home/user/student-catkin-ws/build/tp4_ros_pac
 //Value Computed by CMake
 tp4_ros_package_SOURCE_DIR:STATIC=/home/user/student-catkin-ws/src/tp4_ros_package
 
+//Value Computed by CMake
+tp5_ros_package_BINARY_DIR:STATIC=/home/user/student-catkin-ws/build/tp5_ros_package
+
+//Value Computed by CMake
+tp5_ros_package_SOURCE_DIR:STATIC=/home/user/student-catkin-ws/src/tp5_ros_package
+
 
 ########################
 # INTERNAL cache entries
@@ -496,7 +508,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=8
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=9
 //ADVANCED property for variable: CMAKE_OBJCOPY
 CMAKE_OBJCOPY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_OBJDUMP
