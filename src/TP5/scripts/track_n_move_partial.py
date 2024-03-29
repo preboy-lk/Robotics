@@ -6,6 +6,7 @@ import sys
 import cv2
 import message_filters
 import numpy as np
+import matplotlib.pyplot as plt
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge, CvBridgeError
@@ -52,6 +53,11 @@ class Node:
 
         # Velocity control message
         self.msg_vel = Twist()
+
+	self.tracking_started = False
+	self.track_window = None
+	self.roi_hist = None
+
         rospy.spin()
 
     def detect_aruco(self, img):
@@ -140,14 +146,49 @@ class Node:
         except Exception as e:
             print("No Aruco markers in the field of view.\n")
             return img
+	try:
+            x, y = np.int(centers[0][0]), np.int(centers[0][1])
+            w, h = np.int(centers[1][0]- centers[0][0]), np.int(centers[1][1]-centers[0][1])
+        except Exception as e:
+            print("Only one Aruco in the field of view.\n ")
+	    return img
 
-        # Your code starts here
-        # ...
+	if not self.tracking_started:
+	    # setup initial location of window
+	    self.track_window = (x, y, w, h)
+	    # set up the ROI for tracking
+	    roi = img[y:y+h, x:x+w]
+	    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+            mask = cv2.inRange(hsv_roi, np.array((0., 60.,32.)), np.array((180.,255.,255.)))
+            self.roi_hist = cv2.calcHist([hsv_roi], [0], mask, [180], [0, 180])
+	    cv2.normalize(self.roi_hist,self.roi_hist,0,255,cv2.NORM_MINMAX)
+	    # Setup the termination criteria, either 15 iteration or move by at least 2 pt
+	    self.term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 15, 2 )
+	    self.tracking_started = True
+	else:
+	    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	    dst = cv2.calcBackProject([hsv],[0],self.roi_hist,[0,180],1)
+	    # apply meanshift to get the new location
+	    ret, self.track_window = cv2.meanShift(dst, self.track_window, self.term_crit)
+	    # Draw it on image
+	    #print self.track_window
+	    x,y,w,h = self.track_window
+	img = cv2.rectangle(img, (x,y), (x+w,y+h), 255,2)
+	cv2.imshow("Processed Image", img)
+	cv2.waitKey(1)
 
         # Publish commands
         linear = 0.
         angular = 0.
-        self.send_commands(linear, angular)        
+        if ((x+w/2 - img.shape[1]/2) > 50):
+	    angular = -0.2
+        elif ((img.shape[1]/2 - (x+w/2)) > 50):
+	    angular = 0.2
+        else:
+   	    if (depth[np.round(x+w/2)][np.round(y+h/2)] > 0.5):
+	        linear = 0.2
+        print 'Jokers found. Start tracking'
+       	self.send_commands(linear, angular)        
         return img
 
     def process_image_circle(self, img, depth):
@@ -156,38 +197,37 @@ class Node:
         :param img: opencv image
         :return img: processed opencv image
         """
-	#while not rospy.is_shutdown():
-		# Circle detection
-	    # Your code starts here
+	# Circle detection
+	# Your code starts here
 	hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-	    # define range of blue color in HSV
+	# define range of blue color in HSV
 	lower_red = np.array([0,100,100])
 	upper_red = np.array([10,255,255])
-	    # Threshold the HSV image to get only blue colors
+	# Threshold the HSV image to get only blue colors
 	mask = cv2.inRange(hsv, lower_red, upper_red)
-	    # Bitwise-AND mask and original image
+	# Bitwise-AND mask and original image
 	filtered_img = cv2.bitwise_and(img,img, mask= mask)
 	gray_img = cv2.cvtColor(filtered_img, cv2.COLOR_BGR2GRAY)
 	blurred_img = cv2.medianBlur(gray_img,5)
 	circles = cv2.HoughCircles(blurred_img,cv2.HOUGH_GRADIENT,1,filtered_img.shape[0]*2, param1=300, param2=1)
-	    #print circles
-	    # Draw detected circles on the original image
+	# Draw detected circles on the original image
 	if circles is not None:
 	    circles = np.uint16(np.around(circles))
 	    for i in circles[0,:]:
 		 # draw the outer circle
-	        cv2.circle(blurred_img,(i[0],i[1]),i[2],(0,255,0),2)
+	        cv2.circle(filtered_img,(i[0],i[1]),i[2],(0,255,0),2)
 		 # draw the center of the circle
-		cv2.circle(blurred_img,(i[0],i[1]),2,(0,0,255),3)
-	self.image_pub.publish(self.bridge.cv2_to_imgmsg(blurred_img, encoding = 'passthrough'))
-	cv2.imshow("Processed Image", blurred_img)
+		cv2.circle(filtered_img,(i[0],i[1]),2,(0,0,255),3)
+	self.image_pub.publish(self.bridge.cv2_to_imgmsg(filtered_img, encoding = 'passthrough'))
+	cv2.imshow("Processed Image", filtered_img)
 	cv2.waitKey(1)
 	
 	# Publish necessary commands
         linear = 0.
         angular = 0.
 	if circles is None:
-	    angular = 0.5
+	    angular = 0.4
+	    print 'Circle not found. Rotate to find circle'
 	else:
 	    max_radius = 0
 	    center = []
@@ -197,14 +237,13 @@ class Node:
 		    max_radius = i[2]
 		    center = i
 	    if ((center[0] - img.shape[1]/2) > 50):
-		print center[0] - img.shape[1]/2
 		angular = -0.2
-	    elif ((img.shape[0]/2 - center[1]) > 50):
-		print center[0] - img.shape[1]/2
+	    elif ((img.shape[1]/2 - center[0]) > 50):
 		angular = 0.2
 	    else:
-	    	if (depth[center[0]][center[1]] > 0.4):
+	    	if (depth[center[0]][center[1]] > 1):
 		    linear = 0.2
+	    print 'Circle found. Start tracking'
         self.send_commands(linear, angular)        
         return img
 	
