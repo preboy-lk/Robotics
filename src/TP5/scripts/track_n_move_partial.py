@@ -32,6 +32,11 @@ class Node:
         # Topic subscription
         rgb_sub = message_filters.Subscriber('/camera/rgb/image_raw', Image)
         depth_sub = message_filters.Subscriber('/camera/depth/image_raw', Image)
+	camera_info_sub = message_filters.Subscriber('/camera/rgb/camera_info', CameraInfo)
+
+	ts = message_filters.ApproximateTimeSynchronizer([rgb_sub, camera_info_sub], 10, 0.2)
+   	ts.registerCallback(self.camera_info_callback)
+
         # Synchronization of received messages
         ats = message_filters.ApproximateTimeSynchronizer([rgb_sub, depth_sub], queue_size=5, slop=0.1)
         ats.registerCallback(self.callback)
@@ -57,8 +62,16 @@ class Node:
 	self.tracking_started = False
 	self.track_window = None
 	self.roi_hist = None
+	self.camera_matrix = None
+	self.distortion_coeffs = None
 
         rospy.spin()
+    def camera_info_callback(self, img, msg):
+        #global camera_matrix, distortion_coeffs
+        # Extract camera matrix
+        self.camera_matrix = np.array(msg.K).reshape([3, 3])
+        # Extract distortion coefficients
+        self.distortion_coeffs = np.array(msg.D)
 
     def detect_aruco(self, img):
         """
@@ -78,7 +91,7 @@ class Node:
                 temp_2 = ids[k]
                 temp_2 = temp_2[0]
                 aruco_list[temp_2] = temp_1
-            return aruco_list
+            return aruco_list, corners
 
     def mark_Aruco(self, img, aruco_list):
         """
@@ -123,12 +136,13 @@ class Node:
         elif self.mode == "joker":
             # Part II: a random image
             cv_image = self.process_random_image(cv_rgb_image, cv_depth_image)
-
+	elif self.mode == "joker_without_depth":
+	    cv_image = self.process_image_without_depth(cv_rgb_image) # New function to estimate depth withou depth camera 
         try:
             self.image_pub.publish(self.bridge.cv2_to_imgmsg(cv_image, "bgr8"))
         except CvBridgeError as e:
             rospy.loginfo('cv2 img -> ROS img conversion failure')
-
+   
     def process_random_image(self, img, depth):
         """
         Processing of image with a random picture
@@ -140,18 +154,109 @@ class Node:
         """
         try:
             # Detect Aruco markers
-            aruco_list = self.detect_aruco(img)
+            aruco_list, corners = self.detect_aruco(img)
             # Draw their centers and find their centers
             img, centers = self.mark_Aruco(img, aruco_list)
+
         except Exception as e:
             print("No Aruco markers in the field of view.\n")
+    	    linear = 0.
+	    angular = 0.3
+	    self.send_commands(linear, angular)
             return img
+	
 	try:
             x, y = np.int(centers[0][0]), np.int(centers[0][1])
             w, h = np.int(centers[1][0]- centers[0][0]), np.int(centers[1][1]-centers[0][1])
         except Exception as e:
             print("Only one Aruco in the field of view.\n ")
-	    return img
+	    print("Rotate to find the other one.\n ")
+	    linear = 0.
+	    angular = 0.
+	    if ((np.int(centers[0][0]) - img.shape[1]/2) > 200):
+	        angular = -0.4
+      	    if ((img.shape[1]/2 - np.int(centers[0][0])) > 200):
+	        angular = 0.4
+	    self.send_commands(linear, angular)        
+       	    return img
+
+	if not self.tracking_started:
+	    # setup initial location of window
+	    self.track_window = (x, y, w, h)
+	    # set up the ROI for tracking
+	    roi = img[y:y+h, x:x+w]
+	    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+            mask = cv2.inRange(hsv_roi, np.array((0., 60.,32.)), np.array((180.,255.,255.)))
+            self.roi_hist = cv2.calcHist([hsv_roi], [0], mask, [180], [0, 180])
+	    cv2.normalize(self.roi_hist,self.roi_hist,0,255,cv2.NORM_MINMAX)
+	    # Setup the termination criteria, either 15 iteration or move by at least 2 pt
+	    self.term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 15, 2 )
+	    self.tracking_started = True
+	else:
+	    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	    dst = cv2.calcBackProject([hsv],[0],self.roi_hist,[0,180],1)
+	    # apply meanshift to get the new location
+	    ret, self.track_window = cv2.meanShift(dst, self.track_window, self.term_crit)
+	    # Draw it on image
+	    x,y,w,h = self.track_window
+	img = cv2.rectangle(img, (x,y), (x+w,y+h), 255,2)
+	cv2.imshow("Processed Image", img)
+	cv2.waitKey(1)
+
+        # Publish commands
+        linear = 0.
+        angular = 0.
+        if ((x+w/2 - img.shape[1]/2) > 50):
+	    angular = -0.2
+        elif ((img.shape[1]/2 - (x+w/2)) > 50):
+	    angular = 0.2
+        else:
+   	    if (depth[np.round(x+w/2)][np.round(y+h/2)] > 0.5):
+	        linear = 0.2
+        print 'Jokers found. Start tracking'
+       	self.send_commands(linear, angular)        
+        return img
+
+    def process_image_without_depth(self, img):
+        """
+	This function allow the robot can estimate distance between robot and the marker
+        :param img: opencv image
+        :return img: processed opencv image
+        """
+        try:
+            # Detect Aruco markers
+            aruco_list, corners = self.detect_aruco(img)
+            # Draw their centers and find their centers
+            img, centers = self.mark_Aruco(img, aruco_list)
+	    
+        except Exception as e:
+            print("No Aruco markers in the field of view.\n")
+    	    linear = 0.
+	    angular = 0.3
+	    self.send_commands(linear, angular)
+            return img
+	
+	try:
+            x, y = np.int(centers[0][0]), np.int(centers[0][1])
+            w, h = np.int(centers[1][0]- centers[0][0]), np.int(centers[1][1]-centers[0][1])
+        except Exception as e:
+            print("Only one Aruco in the field of view.\n ")
+	    print("Rotate to find the other one.\n ")
+	    linear = 0.
+	    angular = 0.
+	    if ((np.int(centers[0][0]) - img.shape[1]/2) > 200):
+	        angular = -0.4
+      	    if ((img.shape[1]/2 - np.int(centers[0][0])) > 200):
+	        angular = 0.4
+	    self.send_commands(linear, angular)        
+       	    return img
+
+	marker_size = 0.05
+	if len(corners):
+            # Estimate pose of the first marker (assuming only one marker in the image)
+            rvec, tvec = cv2.aruco.estimatePoseSingleMarkers(corners[0], marker_size, self.camera_matrix, self.distortion_coeffs)
+	    # calculate the distance between marker and camera 
+	    distance = np.sqrt(tvec[0][0][2] ** 2 + tvec[0][0][0] ** 2 + tvec[0][0][1] ** 2)
 
 	if not self.tracking_started:
 	    # setup initial location of window
@@ -176,7 +281,7 @@ class Node:
 	img = cv2.rectangle(img, (x,y), (x+w,y+h), 255,2)
 	cv2.imshow("Processed Image", img)
 	cv2.waitKey(1)
-
+	
         # Publish commands
         linear = 0.
         angular = 0.
@@ -185,7 +290,7 @@ class Node:
         elif ((img.shape[1]/2 - (x+w/2)) > 50):
 	    angular = 0.2
         else:
-   	    if (depth[np.round(x+w/2)][np.round(y+h/2)] > 0.5):
+   	    if (distance > 0.5):
 	        linear = 0.2
         print 'Jokers found. Start tracking'
        	self.send_commands(linear, angular)        
